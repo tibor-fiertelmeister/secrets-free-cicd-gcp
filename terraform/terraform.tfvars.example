@@ -1,0 +1,4 @@
+project_id = "your-sandbox-project-id"
+repository = "tibor-fiertelmeister/secrets-free-cicd-gcp"
+repository_id = "REPLACE_WITH_NUMERIC_ID"
+repository_owner_id = "REPLACE_WITH_NUMERIC_ID"
