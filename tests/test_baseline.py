@@ -27,11 +27,27 @@ class Baseline(unittest.TestCase):
             self.assertTrue(pattern in text, f'Missing ignore pattern: {pattern}')
 
     def test_action_pinning(self):
-        for path in sorted((ROOT / '.github/workflows').glob('*.yml')):
+        for path in sorted((ROOT / '.github/workflows').glob('*.y*ml')):
             for number, line in enumerate(path.read_text().splitlines(), 1):
                 match = re.match(r'^\s*(?:-\s*)?uses:\s*(.*)$', line)
                 if match:
                     self.assertTrue(re.fullmatch(r'[\w.-]+/[\w./-]+@[0-9a-f]{40}', match.group(1).split('#', 1)[0].strip()) is not None, f'Unpinned action: {path.name}:{number}')
+
+
+    def test_dependency_lock(self):
+        path = ROOT / 'terraform/.terraform.lock.hcl'
+        self.assertTrue(path.is_file(), 'Missing provider lock file')
+        text = path.read_text()
+        self.assertIn('registry.terraform.io/hashicorp/google', text)
+        self.assertTrue(re.search(r'version\s*=\s*"[0-9]+\.[0-9]+\.[0-9]+"', text) is not None, 'Missing provider version')
+        self.assertTrue(re.search(r'"h1:[A-Za-z0-9+/]{43}="', text) is not None, 'Missing provider checksum')
+
+    def test_toolchain_pinning(self):
+        ci = (ROOT / '.github/workflows/ci.yml').read_text()
+        deploy = (ROOT / '.github/workflows/deploy.yml').read_text()
+        self.assertTrue(re.search(r'^\s*terraform_version: "[0-9]+\.[0-9]+\.[0-9]+"\s*$', ci, re.M) is not None, 'Missing exact Terraform CLI version')
+        self.assertTrue(re.search(r'^\s*version: "[0-9]+\.[0-9]+\.[0-9]+"\s*$', deploy, re.M) is not None, 'Missing exact gcloud CLI version')
+        self.assertIn('terraform -chdir=terraform init -backend=false -lockfile=readonly', ci)
 
 
 if __name__ == '__main__':
