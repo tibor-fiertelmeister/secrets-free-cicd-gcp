@@ -68,7 +68,7 @@ resource "google_storage_bucket" "demo" {
 }
 resource "google_storage_bucket_iam_member" "runtime" {
   bucket = google_storage_bucket.demo.name
-  role = "roles/storage.objectCreator"
+  role = "roles/editor"
   member = "serviceAccount:${google_service_account.runtime.email}"
 }
 output "workload_identity_provider" { value = google_iam_workload_identity_pool_provider.github.name }
