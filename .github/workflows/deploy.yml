@@ -1,0 +1,36 @@
+name: Keyless deployment demo
+on: workflow_dispatch
+permissions: {}
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Deploy harmless build artifact
+        env:
+          BUCKET: ${{ vars.DEMO_BUCKET }}
+        run: |
+          set -euo pipefail
+          printf 'run=%s\ncommit=%s\n' "$GITHUB_RUN_ID" "$GITHUB_SHA" > demo.txt
+          gcloud storage cp demo.txt "gs://${BUCKET}/runs/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.txt"
+      - name: Verify listing is denied
+        env:
+          BUCKET: ${{ vars.DEMO_BUCKET }}
+        run: |
+          set -euo pipefail
+          if gcloud storage ls "gs://${BUCKET}/" > result.log 2>&1; then
+            echo 'Unexpected permission: listing succeeded'; exit 1
+          fi
+          grep -Ei '403|PERMISSION_DENIED' result.log
+          grep -F 'storage.objects.list' result.log
