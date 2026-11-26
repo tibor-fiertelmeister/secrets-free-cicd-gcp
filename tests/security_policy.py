@@ -92,3 +92,13 @@ def check_workflow(doc, deploy=False):
         require(re.fullmatch(r'\d+\.\d+\.\d+', actions['hashicorp/setup-terraform'].get('terraform_version','')), 'Unpinned Terraform')
         runs = [s.get('run','') for s in job.get('steps',[])]
         require('terraform -chdir=terraform init -backend=false -lockfile=readonly' in runs, 'Readonly init missing')
+        require(set(job) == {'runs-on','steps'}, 'Unexpected CI job configuration')
+        require(job.get('runs-on') == 'ubuntu-24.04', 'CI runner changed')
+        require(set(doc) == {'name','on','permissions','jobs'}, 'Unexpected CI workflow configuration')
+        require(job.get('steps', [])[4:] == EXPECTED_GATE_STEPS, 'Required security gate steps changed')
+        require(len(job.get('steps', [])) == 9, 'Unexpected CI step count')
+        for step in job['steps'][:4]:
+            require(set(step) <= {'uses','with','run'}, 'Unexpected CI setup step configuration')
+
+
+EXPECTED_GATE_STEPS = [{'name': 'Install hash-locked scanner', 'run': 'python3.12 -m venv .venv-audit\n.venv-audit/bin/python -m pip install --require-hashes --only-binary=:all: -r requirements-audit.txt\n.venv-audit/bin/python -m pip check\n'}, {'name': 'Audit scanner dependencies', 'run': '.venv-audit/bin/python -m pip_audit -r requirements-audit.txt --require-hashes --strict'}, {'name': 'Audit project dependencies', 'run': '.venv-audit/bin/python -m pip_audit -r requirements-dev.txt --require-hashes --strict'}, {'name': 'Install hash-locked test dependencies', 'run': 'python3.12 -m venv .venv\n.venv/bin/python -m pip install --require-hashes --only-binary=:all: -r requirements-dev.txt\n.venv/bin/python -m pip check\n'}, {'run': '.venv/bin/python -m unittest discover -s tests -v'}]
