@@ -14,6 +14,15 @@ jobs:
           terraform_version: "1.17.2"
       - run: terraform -chdir=terraform init -backend=false -lockfile=readonly
       - run: terraform -chdir=terraform validate
+      - name: Install hash-locked scanner
+        run: |
+          python3.12 -m venv .venv-audit
+          .venv-audit/bin/python -m pip install --require-hashes --only-binary=:all: -r requirements-audit.txt
+          .venv-audit/bin/python -m pip check
+      - name: Audit scanner dependencies
+        run: .venv-audit/bin/python -m pip_audit -r requirements-audit.txt --require-hashes --strict
+      - name: Audit project dependencies
+        run: .venv-audit/bin/python -m pip_audit -r requirements-dev.txt --require-hashes --strict
       - name: Install hash-locked test dependencies
         run: |
           python3.12 -m venv .venv
