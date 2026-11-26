@@ -2,7 +2,7 @@
 
 A security-focused learning lab exploring GitHub Actions OIDC, Google Cloud Workload Identity Federation, Terraform and least-privilege IAM.
 
-**Status: prototype - offline CI and structured security tests validated; cloud deployment and live security validation pending.**
+**Status: prototype - static security tests and dependency vulnerability gate validated; cloud deployment and live security validation pending.**
 
 The intended runtime identity can upload a harmless artifact to one private Cloud Storage bucket without listing or reading objects. No long-lived cloud key is intended to be required. Bootstrap is performed separately by a human administrator.
 
@@ -10,7 +10,7 @@ The intended runtime identity can upload a harmless artifact to one private Clou
 
 | Control | Status |
 | --- | --- |
-| Branch protection and required CI checks | Verified by negative IAM test in PR #1 |
+| Branch protection and required CI checks | Verified by negative tests in PR #1 and PR #5 |
 | Excessive IAM role detection | Text-marker and structured regression tests passed |
 | Full action SHA pinning | Configured; format checked in CI |
 | Invalid SHA format detection | CI run #4 failed; corrected in #5 |
@@ -18,13 +18,22 @@ The intended runtime identity can upload a harmless artifact to one private Clou
 | Windows and Linux provider checksums | Generated |
 | Terraform CLI 1.17.2 | Configured and validated in CI |
 | Google Cloud CLI 594.0.1 | Configured; runtime validation pending |
-| Dependabot weekly updates | Execution observed; automated provider update PR #3 created |
-| Structured HCL and YAML validation | Passed locally and in CI run #12 |
-| Mutation testing | Passed locally and in CI run #12 |
-| Python dependency locking | Four packages, six SHA-256 hashes; Windows and Linux installation passed |
+| Dependabot weekly updates | Provider update PR #3 observed; Python updates configured, not yet verified |
+| Structured HCL and YAML validation | Passed locally and in CI runs #12 and #16 |
+| Mutation testing | Passed locally and in CI run #16 |
+| Python test dependency locking | Four packages, six SHA-256 hashes; Windows and Linux installation passed |
+| Scanner dependency locking | 29 packages, 32 SHA-256 hashes; Windows and Linux installation passed |
+| Dependency vulnerability scanning | Both requirements files passed locally and in CI run #16 on 2026-11-26 |
+| Vulnerability gate enforcement | PR #5: vulnerable dependency detected, installation skipped, required checks failed, merge disabled |
 | OIDC / WIF / effective least privilege | Pending live cloud validation |
 
-Negative IAM test: [PR #1](https://github.com/tibor-fiertelmeister/secrets-free-cicd-gcp/pull/1), closed without merging. See [CI runs](https://github.com/tibor-fiertelmeister/secrets-free-cicd-gcp/actions) for build evidence. Offline CI run #12 passed all 11 unittest methods, as did local Windows validation. The Dependabot major provider upgrade in PR #3 remains subject to review.
+## Validation evidence
+
+- [PR #1 - negative IAM test](https://github.com/tibor-fiertelmeister/secrets-free-cicd-gcp/pull/1), closed without merging.
+- [PR #5 - negative dependency test](https://github.com/tibor-fiertelmeister/secrets-free-cicd-gcp/pull/5), intentional test; do not merge.
+- [CI runs](https://github.com/tibor-fiertelmeister/secrets-free-cicd-gcp/actions): run #12 passed 11 unittest methods; run #16 passed 12 methods and both dependency audits. Local Windows validation also passed 12 methods.
+
+The Dependabot major provider upgrade in PR #3 remains subject to review.
 
 ## Documentation
 
@@ -35,10 +44,26 @@ Negative IAM test: [PR #1](https://github.com/tibor-fiertelmeister/secrets-free-
 - [Security test plan](tests/security-tests.md)
 - [Supply chain hardening](docs/supply-chain-hardening.md)
 - [Structured security testing and evidence](docs/security-test-hardening.md)
+- [Dependency vulnerability scanning and enforcement evidence](docs/vulnerability-scanning.md)
 
 ## Local checks
 
-Use CPython 3.12 on Windows amd64 or Linux x86_64. Create a virtual environment:
+Use CPython 3.12 on Windows amd64 or Linux x86_64. First create a separate scanner environment:
+
+```sh
+python -m venv .venv-audit
+```
+
+Activate it in Windows CMD with `.venv-audit\Scripts\activate.bat`, or on Linux with `source .venv-audit/bin/activate`. Then run:
+
+```sh
+python -m pip install --require-hashes --only-binary=:all: -r requirements-audit.txt
+python -m pip check
+python -m pip_audit -r requirements-audit.txt --require-hashes --strict
+python -m pip_audit -r requirements-dev.txt --require-hashes --strict
+```
+
+Stop if any command fails. Only after both audits pass, deactivate the scanner environment and create the test environment:
 
 ```sh
 python -m venv .venv
@@ -54,11 +79,11 @@ terraform -chdir=terraform init -backend=false -lockfile=readonly
 terraform -chdir=terraform validate
 ```
 
-Offline CI does not request cloud credentials. Internet access is needed for downloading dependencies unless they are already available locally. Deployment is manually triggered and requires a configured sandbox. Do not run it before completing setup.
+The workflow named Offline CI does not request cloud credentials, but uses network services for dependency downloads and vulnerability advisories. Deployment is manually triggered and requires a configured sandbox. Do not run it before completing setup.
 
 ## Costs and limitations
 
-No persistent compute is planned. Storage, operations and logging may incur charges if deployed. No cloud tests have been executed yet. This is a learning lab, not production-ready. Static tests are project-specific regression checks, not a semantic policy engine or proof of effective IAM. The gate itself can be modified by a PR. Action pinning and package hashes do not establish source trust or absence of vulnerabilities. Hosted runner images and Python patch versions remain mutable. Local state must not be committed.
+No persistent compute is planned. Storage, operations and logging may incur charges if deployed. No cloud tests have been executed yet. This is a learning lab, not production-ready. Static tests are project-specific regression checks, not a semantic policy engine or proof of effective IAM. The gate itself can be modified by a PR. Action pinning and package hashes do not establish source trust or absence of vulnerabilities. Vulnerability scanning covers known advisories for the listed Python dependencies at scan time, not Terraform providers, GitHub Actions or cloud workloads. No scheduled vulnerability scan is configured. Hosted runner images and Python patch versions remain mutable. Local state must not be committed.
 
 ## License
 
